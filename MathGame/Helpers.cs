@@ -62,7 +62,7 @@ internal class Helpers
     {
         while (string.IsNullOrEmpty(input) || !Int32.TryParse(input, out _))
         {
-            Console.WriteLine("Please enter a valid number.");
+            Console.WriteLine("Valid number not given.");
             input = Console.ReadLine();
         }
 

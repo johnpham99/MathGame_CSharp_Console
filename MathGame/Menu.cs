@@ -63,7 +63,7 @@ Q - Quit the program");
         
     }
 
-    internal void ChooseDifficulty(GameType gameType)
+    private void ChooseDifficulty(GameType gameType)
     {
         Console.Clear();
         Console.WriteLine($"""
@@ -75,9 +75,10 @@ Q - Quit the program");
         Console.WriteLine("---------------------------------------------");
         
         var input = Console.ReadLine();
-        input = input.Trim().ToLower();
-
-        while (string.IsNullOrEmpty(input) || (input != "e" && input != "n" && input != "h"))
+        while (string.IsNullOrEmpty(input) || 
+               (input.Trim().ToLower() != "e" && 
+                input.Trim().ToLower() != "n" && 
+                input.Trim().ToLower() != "h"))
         {
             Console.WriteLine("Please choose a valid difficulty");
             input = Console.ReadLine();
@@ -91,6 +92,26 @@ Q - Quit the program");
             _ => throw new ArgumentException("Invalid difficulty.")
         };
         
-        gameClass.Game(gameType, difficulty);
+        VoiceOption(gameType, difficulty);
+    }
+
+    private async void VoiceOption(GameType gameType, Difficulty difficulty)
+    {
+        Console.Clear();
+        Console.WriteLine($"""
+                           Would you like to try using your voice? (Y/N):
+                           """);
+        Console.WriteLine("---------------------------------------------");
+        
+        var input = Console.ReadLine();
+        while (string.IsNullOrEmpty(input) ||
+               (input.Trim().ToLower() != "y" &&
+                input.Trim().ToLower() != "n"))
+        {
+            Console.WriteLine("Please enter 'Y' or 'N'");
+            input = Console.ReadLine();
+        }
+
+        await gameClass.Game(gameType, difficulty, input.Trim().ToLower() == "y" ? true : false);
     }
 }

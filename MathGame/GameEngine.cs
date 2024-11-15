@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using MathGame.Models;
 using Microsoft.CognitiveServices.Speech;
 using Microsoft.Extensions.Configuration;
@@ -7,7 +8,7 @@ namespace MathGame;
 
 internal class GameEngine
 {
- internal async Task Game(GameType gameType, Difficulty difficulty)
+ internal async Task Game(GameType gameType, Difficulty difficulty, bool useSpeech)
  {
   
   // Load Configuration and setup Azure Speech
@@ -15,8 +16,7 @@ internal class GameEngine
    .SetBasePath(AppContext.BaseDirectory)
    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
    .Build();
-
-  Console.WriteLine($"This is a change.");
+  
   var subscriptionKey = config["AzureSpeech:SubscriptionKey"];
   var region = config["AzureSpeech:Region"];
 
@@ -63,27 +63,31 @@ internal class GameEngine
    Console.Clear();
    Console.WriteLine($"{value1} {operatorString} {value2} = ");
    
-   using var cts = new CancellationTokenSource();
-   var speechTask = ListenForSpeechAsync(recognizer, cts.Token);
-   var consoleTask = MonitorConsoleInputAsync(cts.Token);
-   
-   var completedTask = await Task.WhenAny(speechTask, consoleTask);
-   cts.Cancel();
+   var input = "";
 
-   var input = completedTask == speechTask ? await speechTask : await consoleTask;
-   if (completedTask == speechTask)
+   if (useSpeech)
    {
-    input = input.Substring(0, input.Length - 1);
+    var result = await recognizer.RecognizeOnceAsync();
+    if (result.Reason == ResultReason.RecognizedSpeech)
+    {
+     input = Regex.Replace(result.Text.Trim().ToLower(), @"[^a-z0-9\s]", "");
+     Console.WriteLine($"You said {input}.");
+    }
    }
+   else
+   {
+    input = Console.ReadLine();
+   }
+   
    input = Helpers.ValidateInput(input);
    if (int.Parse(input) == correctAnswer)
    {
-    Console.WriteLine("Correct! Press any key for the next question.");
+    Console.WriteLine("Correct! Press any key to continue.");
     score++;
    }
    else
    {
-    Console.WriteLine($"Incorrect. The correct answer was {correctAnswer}. Press any key for the next question.");
+    Console.WriteLine($"Incorrect. The correct answer was {correctAnswer}. Press any key to continue.");
    }
    
    if (i == 4)
@@ -98,58 +102,5 @@ internal class GameEngine
   Console.WriteLine("Press any key to return to the main menu.");
   Console.ReadKey();
   Helpers.AddToHistory(score, randomGame ? GameType.Random : gameType, difficulty, stopwatch.Elapsed.TotalSeconds);
- }
-
- private static async Task<string> ListenForSpeechAsync(SpeechRecognizer recognizer,
-  CancellationToken token)
- {
-  var tcs = new TaskCompletionSource<string>();
-
-  recognizer.Recognized += (s, e) =>
-  {
-   if (e.Result.Reason == ResultReason.RecognizedSpeech)
-   {
-    tcs.TrySetResult(e.Result.Text);
-   }
-   else if (e.Result.Reason == ResultReason.NoMatch)
-   {
-    tcs.TrySetResult(string.Empty);
-   }
-  };
-
-  recognizer.Canceled += (s, e) =>
-  {
-   if (e.Reason == CancellationReason.Error)
-   {
-    tcs.TrySetResult(string.Empty);
-   }
-  };
-  
-  await recognizer.StartContinuousRecognitionAsync();
-  
-  await using (token.Register(() => tcs.TrySetCanceled()))
-  {
-   try
-   {
-    var result = await tcs.Task;
-    await recognizer.StopContinuousRecognitionAsync();
-    return result;
-   }
-   catch (TaskCanceledException)
-   {
-    await recognizer.StopContinuousRecognitionAsync();
-    return "";
-   }
-  }
- }
-
- private static async Task<string> MonitorConsoleInputAsync(CancellationToken token)
- {
-  return await Task.Run(() =>
-  {
-   if (token.IsCancellationRequested) return ""; 
-   var input = Console.ReadLine();
-   return input ?? ""; 
-  });
  }
 }
